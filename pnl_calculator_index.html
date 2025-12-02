@@ -1,0 +1,361 @@
+<!--
+File: index.html
+Description: Standalone PnL calculator and monthly calendar, ready for GitHub Pages.
+Instructions: Upload this file as index.html to the root of a GitHub Pages repository or to the docs/ folder of a repo with Pages enabled.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PnL Studio — Daily PnL & Monthly Calendar</title>
+  <meta name="description" content="Private, client side daily PnL calculator with a colored monthly calendar. Stores data in your browser only." />
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#94a3b8; --accent:#22c55e; --danger:#ef4444; --glass:rgba(255,255,255,0.03);
+      --glass-2:rgba(255,255,255,0.02); --glass-3:rgba(255,255,255,0.01);
+      --glass-border:rgba(255,255,255,0.04);
+      --radius:16px; --mono:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+      --shadow:0 6px 20px rgba(2,6,23,0.6);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; background:linear-gradient(180deg,#071026 0%, #07131b 40%, #071119 100%); color:#e6eef8; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      display:flex; align-items:center; justify-content:center; padding:32px;
+    }
+    .wrap{max-width:1100px; width:100%; display:grid; grid-template-columns:1fr 420px; gap:28px; align-items:start}
+    .panel{background:linear-gradient(180deg,var(--card), #071121); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); border:1px solid var(--glass-border)}
+    .hero{grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:16px}
+    .title{font-size:20px; font-weight:700; letter-spacing:-0.02em}
+    .subtitle{color:var(--muted); font-size:13px}
+    /* Input module */
+    .inputs{display:flex; gap:12px; align-items:center}
+    .field{background:var(--glass); border-radius:12px; padding:12px 14px; min-width:160px; display:flex; flex-direction:column}
+    .field label{font-size:12px; color:var(--muted); margin-bottom:6px}
+    .field input{background:transparent; border:0; outline:none; color:inherit; font-size:18px; font-weight:600}
+    .btn{background:linear-gradient(90deg,#0ea5a9,#22c55e); border-radius:12px; padding:10px 14px; border:0; cursor:pointer; font-weight:700}
+    .btn.secondary{background:transparent; border:1px solid var(--glass-border); color:var(--muted)}
+    /* Outputs */
+    .outputs{display:flex; gap:12px; margin-top:18px}
+    .card{background:var(--glass-2); border-radius:12px; padding:14px; flex:1; display:flex; flex-direction:column; gap:6px}
+    .num{font-size:20px; font-weight:800}
+    .small{font-size:12px; color:var(--muted)}
+    .pnl-pos{color:var(--accent)}
+    .pnl-neg{color:var(--danger)}
+    /* Calendar */
+    .calendar{display:flex; flex-direction:column; gap:12px}
+    .cal-header{display:flex; align-items:center; justify-content:space-between}
+    .nav{display:flex; gap:8px; align-items:center}
+    .month-title{font-weight:700}
+    .grid{display:grid; grid-template-columns:repeat(7,1fr); gap:8px}
+    .day{height:86px; border-radius:10px; background:var(--glass-3); padding:8px; position:relative; display:flex; flex-direction:column; justify-content:space-between; border:1px solid transparent}
+    .day.empty{opacity:0.35}
+    .day .date{font-weight:700}
+    .pnl-badge{font-weight:700; font-size:12px}
+    .pnl-neg-bg{background:linear-gradient(180deg, rgba(239,68,68,0.12), rgba(239,68,68,0.06)); color:var(--danger); border:1px solid rgba(239,68,68,0.12)}
+    .pnl-pos-bg{background:linear-gradient(180deg, rgba(34,197,94,0.12), rgba(34,197,94,0.06)); color:var(--accent); border:1px solid rgba(34,197,94,0.12)}
+    .pnl-none{color:var(--muted)}
+    .day:hover{transform:translateY(-6px); transition:transform 160ms ease}
+    .summary{display:flex; gap:12px; align-items:center}
+    .mini{font-size:13px; color:var(--muted)}
+    /* modal */
+    .modal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; backdrop-filter:blur(4px);}
+    .modal.show{display:flex}
+    .modal-card{width:420px; background:linear-gradient(180deg,#0b1522,#061018); border-radius:12px; padding:18px; border:1px solid var(--glass-border)}
+    .row{display:flex; gap:8px; align-items:center}
+    .controls{display:flex; gap:8px; margin-top:12px}
+    .muted{color:var(--muted); font-size:13px}
+    footer{margin-top:12px; font-size:12px; color:var(--muted)}
+    /* responsive */
+    @media(max-width:980px){.wrap{grid-template-columns:1fr; padding:12px} .day{height:74px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero panel">
+      <div>
+        <div class="title">PnL Studio</div>
+        <div class="subtitle">Enter starting and closing balance, save the day, view the month</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center">
+        <button id="exportBtn" class="btn secondary">Export CSV</button>
+        <button id="clearBtn" class="btn secondary">Clear All</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="inputs">
+        <div class="field">
+          <label for="start">Starting balance</label>
+          <input id="start" inputmode="decimal" placeholder="0.00" />
+        </div>
+        <div class="field">
+          <label for="close">Closing balance</label>
+          <input id="close" inputmode="decimal" placeholder="0.00" />
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <button id="calcBtn" class="btn">Calculate</button>
+          <button id="saveBtn" class="btn secondary">Save day</button>
+        </div>
+      </div>
+
+      <div class="outputs">
+        <div class="card">
+          <div class="small">Absolute PnL</div>
+          <div id="absPnl" class="num">—</div>
+        </div>
+        <div class="card">
+          <div class="small">Percentage</div>
+          <div id="pctPnl" class="num">—</div>
+        </div>
+        <div class="card">
+          <div class="small">Growth multiplier</div>
+          <div id="mult" class="num">—</div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px; color:var(--muted); font-size:13px">Tip: Use the calculator and then press Save day to add the entry to the calendar. All data is stored locally in your browser only.</div>
+    </div>
+
+    <div class="panel">
+      <div class="calendar">
+        <div class="cal-header">
+          <div class="month-title" id="monthTitle">Month</div>
+          <div class="nav">
+            <button id="prevMonth" class="btn secondary">◀</button>
+            <button id="nextMonth" class="btn secondary">▶</button>
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="mini">Total for month <span id="monthTotal">—</span></div>
+          <div class="mini">Winners <span id="wins">—</span></div>
+          <div class="mini">Losses <span id="losses">—</span></div>
+          <div class="mini">Avg daily <span id="avg">—</span></div>
+        </div>
+
+        <div class="grid" id="grid">
+          <!-- calendar cells appended by JS -->
+        </div>
+        <footer>Data stored locally, no network. Click a day to edit or delete. Hover for details.</footer>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- modal for editing day -->
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div style="font-weight:800" id="modalTitle">Edit entry</div>
+        <button id="closeModal" class="btn secondary">Close</button>
+      </div>
+      <div style="margin-top:12px">
+        <div class="row"><div class="muted">Date</div><div id="modalDate" style="margin-left:auto; font-weight:700"></div></div>
+        <div style="margin-top:8px" class="field"><label>Starting</label><input id="modalStart" inputmode="decimal" /></div>
+        <div style="margin-top:8px" class="field"><label>Closing</label><input id="modalClose" inputmode="decimal" /></div>
+        <div class="controls">
+          <button id="modalSave" class="btn">Save</button>
+          <button id="modalDelete" class="btn secondary">Delete</button>
+        </div>
+        <div style="margin-top:8px" class="muted">Changes are saved locally in your browser.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Utilities
+const $ = sel => document.querySelector(sel);
+const fmt = n => {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const sign = n < 0 ? '-' : '';
+  const v = Math.abs(Number(n)).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  return sign + v;
+}
+const fmtPct = n => n === null || n === undefined || isNaN(n) ? '—' : (n>0?'+':'') + Number(n).toFixed(2) + '%';
+
+// Storage key
+const STORAGE_KEY = 'pnl_studio_entries_v1';
+
+function loadEntries(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ console.error(e); return {}; }
+}
+function saveEntries(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
+
+// Calculate
+function calculate(start, close){
+  start = Number(start);
+  close = Number(close);
+  if (isNaN(start) || isNaN(close)) return null;
+  const abs = close - start;
+  const pct = start === 0 ? null : (abs / start) * 100;
+  const mult = start === 0 ? null : (close / start);
+  return {abs, pct, mult};
+}
+
+// UI bindings
+const startEl = $('#start');
+const closeEl = $('#close');
+const calcBtn = $('#calcBtn');
+const saveBtn = $('#saveBtn');
+const absPnl = $('#absPnl');
+const pctPnl = $('#pctPnl');
+const multEl = $('#mult');
+const grid = $('#grid');
+const monthTitle = $('#monthTitle');
+const prevMonth = $('#prevMonth');
+const nextMonth = $('#nextMonth');
+const monthTotal = $('#monthTotal');
+const winsEl = $('#wins');
+const lossesEl = $('#losses');
+const avgEl = $('#avg');
+const exportBtn = $('#exportBtn');
+const clearBtn = $('#clearBtn');
+
+let state = { viewYear: null, viewMonth: null, entries: loadEntries() };
+
+function todayKey(d=new Date()){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function setViewToToday(){
+  const now = new Date(); state.viewYear = now.getFullYear(); state.viewMonth = now.getMonth(); renderCalendar();
+}
+
+function setResults(res){
+  if (!res){ absPnl.textContent='—'; pctPnl.textContent='—'; multEl.textContent='—'; return; }
+  absPnl.textContent = fmt(res.abs);
+  pctPnl.textContent = res.pct === null ? '—' : fmtPct(res.pct);
+  multEl.textContent = res.mult === null ? '—' : Number(res.mult).toFixed(4) + 'x';
+  absPnl.className = 'num ' + (res.abs>0 ? 'pnl-pos' : (res.abs<0 ? 'pnl-neg' : ''));
+  pctPnl.className = 'num ' + (res.pct>0 ? 'pnl-pos' : (res.pct<0 ? 'pnl-neg' : ''));
+}
+
+calcBtn.addEventListener('click', ()=>{
+  const res = calculate(startEl.value, closeEl.value);
+  setResults(res);
+});
+
+saveBtn.addEventListener('click', ()=>{
+  const key = todayKey();
+  const res = calculate(startEl.value, closeEl.value);
+  if (!res){ alert('Invalid numbers'); return; }
+  state.entries[key] = {date:key, start: Number(startEl.value), close: Number(closeEl.value), abs: res.abs, pct: res.pct, mult: res.mult};
+  saveEntries(state.entries);
+  renderCalendar();
+});
+
+// Calendar rendering
+function firstDayOfMonth(year, month){ return new Date(year, month, 1); }
+function daysInMonth(year, month){ return new Date(year, month+1, 0).getDate(); }
+
+function renderCalendar(){
+  const year = state.viewYear; const month = state.viewMonth;
+  const first = firstDayOfMonth(year, month);
+  const startWeekday = first.getDay(); // 0 Sun
+  const total = daysInMonth(year, month);
+  monthTitle.textContent = first.toLocaleString(undefined, {month:'long', year:'numeric'});
+  grid.innerHTML = '';
+
+  // add weekday labels
+  const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  for (let i=0;i<7;i++){
+    const el = document.createElement('div'); el.className='day empty'; el.style.height='28px'; el.style.display='flex'; el.style.alignItems='center'; el.style.justifyContent='center'; el.style.fontSize='12px'; el.style.fontWeight='700'; el.textContent=weekdays[i]; grid.appendChild(el);
+  }
+
+  // fill blanks before first day
+  for (let i=0;i<startWeekday;i++){ const d = document.createElement('div'); d.className='day empty'; grid.appendChild(d); }
+
+  // days
+  for (let d=1; d<=total; d++){
+    const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const entry = state.entries[key];
+    const cell = document.createElement('div'); cell.className='day';
+    const dateEl = document.createElement('div'); dateEl.className='date'; dateEl.textContent=d; cell.appendChild(dateEl);
+    const badge = document.createElement('div'); badge.className='pnl-badge';
+    if (entry){
+      badge.textContent = fmt(entry.abs);
+      if (entry.abs>0) cell.classList.add('pnl-pos-bg');
+      else if (entry.abs<0) cell.classList.add('pnl-neg-bg');
+    } else { badge.textContent='—'; badge.classList.add('pnl-none'); }
+    cell.appendChild(badge);
+    cell.addEventListener('click', ()=>openModal(key, entry));
+    grid.appendChild(cell);
+  }
+
+  // compute summary
+  let totalPnl = 0, wins=0, losses=0, count=0;
+  Object.values(state.entries).forEach(e=>{
+    const [y,m,d] = e.date.split('-').map(Number);
+    if (y===year && (m-1)===month){ totalPnl += Number(e.abs); count++; if (e.abs>0) wins++; if (e.abs<0) losses++; }
+  });
+  monthTotal.textContent = fmt(totalPnl);
+  winsEl.textContent = wins;
+  lossesEl.textContent = losses;
+  avgEl.textContent = count ? fmt(totalPnl / count) : '—';
+}
+
+prevMonth.addEventListener('click', ()=>{ if (state.viewMonth===0){ state.viewMonth=11; state.viewYear-=1 } else state.viewMonth--; renderCalendar(); });
+nextMonth.addEventListener('click', ()=>{ if (state.viewMonth===11){ state.viewMonth=0; state.viewYear+=1 } else state.viewMonth++; renderCalendar(); });
+
+// Modal edit
+const modal = $('#modal');
+const modalTitle = $('#modalTitle');
+const modalDate = $('#modalDate');
+const modalStart = $('#modalStart');
+const modalClose = $('#modalClose');
+const modalSave = $('#modalSave');
+const modalDelete = $('#modalDelete');
+const closeModalBtn = $('#closeModal');
+let activeKey = null;
+
+function openModal(key, entry){ activeKey = key; modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); modalDate.textContent = key; modalStart.value = entry ? entry.start : ''; modalClose.value = entry ? entry.close : ''; }
+function closeModal(){ modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); activeKey=null; }
+
+modalSave.addEventListener('click', ()=>{
+  if (!activeKey) return;
+  const res = calculate(modalStart.value, modalClose.value);
+  if (!res){ alert('Invalid numbers'); return; }
+  state.entries[activeKey] = {date:activeKey, start:Number(modalStart.value), close:Number(modalClose.value), abs:res.abs, pct:res.pct, mult:res.mult};
+  saveEntries(state.entries); renderCalendar(); closeModal();
+});
+modalDelete.addEventListener('click', ()=>{
+  if (!activeKey) return; delete state.entries[activeKey]; saveEntries(state.entries); renderCalendar(); closeModal();
+});
+closeModalBtn.addEventListener('click', closeModal);
+modal.addEventListener('click', (e)=>{ if (e.target===modal) closeModal(); });
+
+// Export CSV
+function entriesToCSV(entries){
+  const rows = [['date','start','close','abs','pct','mult']];
+  Object.values(entries).sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>rows.push([e.date, e.start, e.close, e.abs, e.pct, e.mult]));
+  return rows.map(r=>r.map(v=>String(v)).join(',')).join('\n');
+}
+exportBtn.addEventListener('click', ()=>{
+  const csv = entriesToCSV(state.entries);
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'pnl_entries.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+
+// Clear all
+clearBtn.addEventListener('click', ()=>{
+  if (!confirm('Delete all saved PnL data from this browser? This action cannot be undone.')) return;
+  state.entries = {}; saveEntries(state.entries); renderCalendar();
+});
+
+// init
+setViewToToday();
+// if there is an entry for today, populate inputs
+const today = loadEntries()[todayKey()]; if (today){ startEl.value = today.start; closeEl.value = today.close; setResults({abs:today.abs, pct:today.pct, mult:today.mult}); }
+
+</script>
+</body>
+</html>
